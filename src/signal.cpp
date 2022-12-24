@@ -4,7 +4,7 @@
  *
  * TS : time setting
  * TS01xx train detection frame
- * TS02xx transition frame for each signal state
+ * TS02xx changeLED frame for each signal state
  *
  * SC : signal control
  * SC01 GO
@@ -24,27 +24,11 @@ const int YELLOW1 = 9;
 const int RED = 6;
 const int YELLOW2 = 5;
 const int GREEN = 3;
+const int DEBUG_LED = 13;
 
-bool timer_flag = false;
+int sensor = 0;
+int volume = 0;
 
-void timerTask(){
-    timer_flag = true;
-}
-
-void setup(){
-    pinMode(YELLOW1,OUTPUT);
-    pinMode(RED,OUTPUT);
-    pinMode(YELLOW2,OUTPUT);
-    pinMode(GREEN,OUTPUT);
-    MsTimer2::set(100,timerTask);
-    MsTimer2::start();
-
-    Serial.begin(115200);
-}
-
-int sens_count = 0;
-int TRAIN_DETECT_TH = 410;
-int TRAIN_DETECT_FRAME = 5;
 enum Status{
     GO,
     SLOW,
@@ -57,89 +41,138 @@ enum Event{
     SENS,
     UART
 };
+
 Event event = CALL;
 Status status = GO;
-int transition_count = 0;
-const int TRANSITION_FRAME = 10;
 
-void loop(){
-    event = CALL;
-
-    if(timer_flag){
-        timer_flag = false;
-    }
-
-    int sensor = analogRead(A0);
-    int volume = analogRead(A3);
-
-    if(sensor < volume){
-        sens_count++;
-        if(sens_count > TRAIN_DETECT_TH){
-            sens_count = 0;
-            event = SENS;
-//            digitalWrite(YELLOW2,HIGH);
-        }
-    }
-
-    if(status != GO){
-        transition_count++;
-        if(transition_count > TRANSITION_FRAME){
-            transition_count = 0;
-            event = TIMEOUT;
-        }
-    }
-    else{
-        transition_count = 0;
-    }
-
-    switch(status){
+void changeLED(Status status_to){
+    switch(status_to){
         case GO:
             digitalWrite(YELLOW1,LOW);
             digitalWrite(RED,LOW);
             digitalWrite(YELLOW2,LOW);
             digitalWrite(GREEN,HIGH);
-            if(event == SENS){
-                status = STOP;
-            }
             break;
-//        case SLOW:
-//            digitalWrite(YELLOW1,HIGH);
-//            digitalWrite(RED,LOW);
-//            digitalWrite(YELLOW2,LOW);
-//            digitalWrite(GREEN,HIGH);
-//            if(event == TIMEOUT){
-//                status = GO;
-//            }
-//            break;
-//        case WARN:
-//            digitalWrite(YELLOW1,LOW);
-//            digitalWrite(RED,LOW);
-//            digitalWrite(YELLOW2,HIGH);
-//            digitalWrite(GREEN,LOW);
-//            if(event == TIMEOUT){
-//                status = SLOW;
-//            }
-//            break;
+        case SLOW:
+            digitalWrite(YELLOW1,HIGH);
+            digitalWrite(RED,LOW);
+            digitalWrite(YELLOW2,HIGH);
+            digitalWrite(GREEN,LOW);
+            break;
+        case WARN:
+            digitalWrite(YELLOW1,LOW);
+            digitalWrite(RED,LOW);
+            digitalWrite(YELLOW2,HIGH);
+            digitalWrite(GREEN,LOW);
+            break;
         case STOP:
             digitalWrite(YELLOW1,LOW);
             digitalWrite(RED,HIGH);
             digitalWrite(YELLOW2,LOW);
             digitalWrite(GREEN,LOW);
-            if(event == TIMEOUT){
-                //status = WARN;
-                status = GO;
-            }
             break;
         default:
             break;
     }
+}
 
-//    analogWrite(RED,120);
+bool timer_flag = false;
+void timerTask(){
+    timer_flag = true;
+}
+
+void setup(){
+    MsTimer2::set(100,timerTask);
+    MsTimer2::start();
+
+    Serial.begin(115200);
+
+    pinMode(DEBUG_LED,OUTPUT);
+
+    pinMode(YELLOW1,OUTPUT);
+    pinMode(RED,OUTPUT);
+    pinMode(YELLOW2,OUTPUT);
+    pinMode(GREEN,OUTPUT);
+    changeLED(GO);
+}
+
+
+int changeLED_count = 0;
+const int TRANSITION_FRAME = 10;
+int timer_count = 0;
+
+int transitionTriger(){
+    if(timer_flag){
+        timer_flag = false;
+        timer_count++;
+    }
+
+    if(timer_count > TRANSITION_FRAME){
+        timer_count = 0;
+        return 1;
+    }
+    return 0;
+}
+
+int sens_count = 0;
+int TRAIN_DETECT_TH = 410;
+int TRAIN_DETECT_FRAME = 5;
+
+int detectTrain(){
+    if(sensor < volume){
+        sens_count++;
+        if(sens_count > TRAIN_DETECT_TH){
+            sens_count = 0;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void loop(){
+    sensor = analogRead(A0);
+    volume = analogRead(A3);
+    if(sensor < volume){
+        digitalWrite(DEBUG_LED,HIGH);
+    }
+    else{
+        digitalWrite(DEBUG_LED,LOW);
+    }
 
     Serial.print(volume);
     Serial.print(", ");
     Serial.print(sensor);
     Serial.println("");
+
+
+    switch(status){
+        case GO:
+            if(detectTrain()){
+                changeLED(STOP);
+                status = STOP;
+            }
+            break;
+        case SLOW:
+            if(transitionTriger()){
+                changeLED(GO);
+                status = GO;
+            }
+            break;
+        case WARN:
+            if(transitionTriger()){
+                changeLED(SLOW);
+                status = SLOW;
+            }
+            break;
+        case STOP:
+            if(transitionTriger()){
+                changeLED(STOP);
+                status = STOP;
+            }
+            break;
+        default:
+            break;
+    };
 }
 
 
