@@ -164,25 +164,40 @@ void loop(){
             }
             break;
         case SLOW:
-            if(transitionTriger()){
-                changeLED(GO);
-                status = GO;
+            if(detectTrain()){
+                changeLED(STOP);
+                status = STOP;
+            }
+            else{
+                if(transitionTriger()){
+                    changeLED(GO);
+                    status = GO;
+                }
             }
             break;
         case WARN:
-            if(transitionTriger()){
-                changeLED(SLOW);
-                status = SLOW;
+            if(detectTrain()){
+                changeLED(STOP);
+                status = STOP;
+            }
+            else{
+                if(transitionTriger()){
+                    changeLED(SLOW);
+                    status = SLOW;
+                }
             }
             break;
         case STOP:
             if(detectTrain()){
                 changeLED(STOP);
                 status = STOP;
+                timer_count = 0;
             }
-            else if(transitionTriger()){
-                changeLED(WARN);
-                status = WARN;
+            else{
+                if(transitionTriger()){
+                    changeLED(WARN);
+                    status = WARN;
+                }
             }
             break;
         default:
