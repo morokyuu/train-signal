@@ -56,8 +56,8 @@ void changeLED(Status status_to){
         case SLOW:
             digitalWrite(YELLOW1,HIGH);
             digitalWrite(RED,LOW);
-            digitalWrite(YELLOW2,HIGH);
-            digitalWrite(GREEN,LOW);
+            digitalWrite(YELLOW2,LOW);
+            digitalWrite(GREEN,HIGH);
             break;
         case WARN:
             digitalWrite(YELLOW1,LOW);
@@ -76,9 +76,10 @@ void changeLED(Status status_to){
     }
 }
 
-bool timer_flag = false;
+volatile bool timer_flag = false;
 void timerTask(){
     timer_flag = true;
+    Serial.println("nanika");
 }
 
 void setup(){
@@ -102,11 +103,7 @@ const int TRANSITION_FRAME = 10;
 int timer_count = 0;
 
 int transitionTriger(){
-    if(timer_flag){
-        timer_flag = false;
-        timer_count++;
-    }
-
+    timer_count++;
     if(timer_count > TRANSITION_FRAME){
         timer_count = 0;
         return 1;
@@ -115,24 +112,38 @@ int transitionTriger(){
 }
 
 int sens_count = 0;
-int TRAIN_DETECT_TH = 410;
-int TRAIN_DETECT_FRAME = 5;
+int TRAIN_DETECT_FRAME = 3;
 
 int detectTrain(){
-    if(sensor < volume){
+    int flag = 0;
+    Serial.print(sens_count);
+    Serial.println("");
+
+    if(sensor > volume){
         sens_count++;
-        if(sens_count > TRAIN_DETECT_TH){
-            sens_count = 0;
-            return 1;
+        if(sens_count > TRAIN_DETECT_FRAME){
+            sens_count = TRAIN_DETECT_FRAME-1;
+            flag = 1;
         }
     }
-    return 0;
+    else{
+        sens_count = 0;
+        flag = 0;
+    }
+    return flag;
 }
 
 void loop(){
+    while(1){
+        if(timer_flag == true){
+            timer_flag = false;
+            break;
+        }
+    }
+
     sensor = analogRead(A0);
     volume = analogRead(A3);
-    if(sensor < volume){
+    if(sensor > volume){
         digitalWrite(DEBUG_LED,HIGH);
     }
     else{
@@ -165,9 +176,13 @@ void loop(){
             }
             break;
         case STOP:
-            if(transitionTriger()){
+            if(detectTrain()){
                 changeLED(STOP);
                 status = STOP;
+            }
+            else if(transitionTriger()){
+                changeLED(WARN);
+                status = WARN;
             }
             break;
         default:
